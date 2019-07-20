@@ -1,8 +1,5 @@
 package com.vitanov.multiimagepicker;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -20,7 +17,6 @@ import com.zhihu.matisse.engine.impl.GlideEngine;
 
 import android.content.pm.ActivityInfo;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -28,7 +24,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,7 +33,6 @@ import android.Manifest;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Environment;
-import android.provider.MediaStore;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
@@ -94,7 +88,7 @@ public class MultiImagePickerPlugin implements MethodCallHandler, PluginRegistry
         channel.setMethodCallHandler(instance);
     }
 
-    private class GetThumbnailTask extends AsyncTask<String, Void, Void> {
+    private class GetThumbnailTask extends AsyncTask<String, ByteBuffer, ByteBuffer> {
         BinaryMessenger messenger;
         String path;
         String identifier;
@@ -111,7 +105,7 @@ public class MultiImagePickerPlugin implements MethodCallHandler, PluginRegistry
         }
 
         @Override
-        protected Void doInBackground(String... strings) {
+        protected ByteBuffer doInBackground(String... strings) {
             BitmapFactory.Options bitmapOptions = new BitmapFactory.Options();
             bitmapOptions.inSampleSize = 10;
             Bitmap bitmap = ThumbnailUtils.extractThumbnail(BitmapFactory.decodeFile(this.path, bitmapOptions), this.width, this.height, OPTIONS_RECYCLE_INPUT);
@@ -123,12 +117,20 @@ public class MultiImagePickerPlugin implements MethodCallHandler, PluginRegistry
 
             final ByteBuffer buffer = ByteBuffer.allocateDirect(byteArray.length);
             buffer.put(byteArray);
-            this.messenger.send("multi_image_picker/image/" + this.identifier, buffer);
-            return null;
+            return buffer;
+        }
+
+        @Override
+        protected void onPostExecute(ByteBuffer buffer) {
+            super.onPostExecute(buffer);
+            if (buffer != null) {
+                this.messenger.send("multi_image_picker/image/" + this.identifier, buffer);
+                buffer.clear();
+            }
         }
     }
 
-    private class GetImageTask extends AsyncTask<String, Void, Void> {
+    private class GetImageTask extends AsyncTask<String, Void, ByteBuffer> {
         BinaryMessenger messenger;
         String path;
         String identifier;
@@ -141,7 +143,7 @@ public class MultiImagePickerPlugin implements MethodCallHandler, PluginRegistry
         }
 
         @Override
-        protected Void doInBackground(String... strings) {
+        protected ByteBuffer doInBackground(String... strings) {
             File file = new File(this.path);
 
             FileInputStream fileInputStream = null;
@@ -168,8 +170,14 @@ public class MultiImagePickerPlugin implements MethodCallHandler, PluginRegistry
             }
             final ByteBuffer buffer = ByteBuffer.allocateDirect(bytesArray.length);
             buffer.put(bytesArray);
+            return buffer;
+        }
+
+        @Override
+        protected void onPostExecute(ByteBuffer buffer) {
+            super.onPostExecute(buffer);
             this.messenger.send("multi_image_picker/image/" + this.identifier, buffer);
-            return null;
+            buffer.clear();
         }
     }
 
